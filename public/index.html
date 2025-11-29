@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Онлайн библиотека</title>
+<style>
+    body { font-family: 'Arial', sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; }
+    #controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    #controls input, #controls select { padding: 5px; font-size: 14px; }
+    #booksContainer { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
+    .book-card { background: #fff; padding: 15px; width: 220px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); position: relative; transition: transform 0.2s; }
+    .book-card:hover { transform: scale(1.03); }
+    .book-card h3 { margin: 0 0 5px; font-size: 16px; }
+    .book-card p { margin: 3px 0; font-size: 14px; color: #555; }
+    .btn { cursor: pointer; border: none; padding: 5px 10px; border-radius: 5px; font-size: 13px; margin-top: 5px; }
+    .favorite { background: #ff6b81; color: #fff; }
+    .read { background: #6bc1ff; color: #fff; }
+    .star { color: gold; cursor: pointer; font-size: 16px; margin-right: 2px; }
+    #counters { text-align: center; margin-bottom: 15px; }
+</style>
+</head>
+<body>
+<h1>Онлайн библиотека</h1>
+
+<div id="controls">
+    <input type="text" id="searchTitle" placeholder="По названию">
+    <input type="text" id="searchAuthor" placeholder="По автору">
+    <input type="text" id="searchGenre" placeholder="По жанру">
+    <select id="filterStatus">
+        <option value="">Все</option>
+        <option value="favorite">Избранное</option>
+        <option value="read">Прочитано</option>
+    </select>
+</div>
+
+<div id="counters">
+    Всего книг: <span id="totalBooks">0</span> |
+    Прочитано: <span id="readBooks">0</span> |
+    Избранное: <span id="favoriteBooks">0</span>
+</div>
+
+<div id="booksContainer"></div>
+
+<script>
+let booksData = [];
+let userData = JSON.parse(localStorage.getItem('userBooks')) || {};
+
+function saveUserData() {
+    localStorage.setItem('userBooks', JSON.stringify(userData));
+}
+
+function renderBooks() {
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    const searchTitle = document.getElementById('searchTitle').value.toLowerCase();
+    const searchAuthor = document.getElementById('searchAuthor').value.toLowerCase();
+    const searchGenre = document.getElementById('searchGenre').value.toLowerCase();
+    const filterStatus = document.getElementById('filterStatus').value;
+
+    let total = 0, readCount = 0, favoriteCount = 0;
+
+    booksData.forEach(book => {
+        const status = userData[book.id]?.status || '';
+        const rating = userData[book.id]?.rating || 0;
+
+        if (searchTitle && !book.title.toLowerCase().includes(searchTitle)) return;
+        if (searchAuthor && !book.author.toLowerCase().includes(searchAuthor)) return;
+        if (searchGenre && !book.genre.toLowerCase().includes(searchGenre)) return;
+        if (filterStatus === 'favorite' && status !== 'favorite') return;
+        if (filterStatus === 'read' && status !== 'read') return;
+
+        total++;
+        if (status === 'read') readCount++;
+        if (status === 'favorite') favoriteCount++;
+
+        const card = document.createElement('div');
+        card.className = 'book-card';
+        card.innerHTML = `
+            <h3>${book.title}</h3>
+            <p><strong>Автор:</strong> ${book.author}</p>
+            <p><strong>Год:</strong> ${book.year}</p>
+            <p><strong>Жанр:</strong> ${book.genre}</p>
+            <div>
+                <button class="btn favorite">${status==='favorite' ? '❤️ Избранное' : 'Добавить в избранное'}</button>
+                <button class="btn read">${status==='read' ? '📘 Прочитано' : 'Отметить прочитано'}</button>
+            </div>
+            <div style="margin-top:5px;">
+                ${[1,2,3,4,5].map(i=>`<span class="star" data-id="${book.id}" data-star="${i}">${i<=rating?'★':'☆'}</span>`).join('')}
+            </div>
+        `;
+        container.appendChild(card);
+
+        card.querySelector('.favorite').onclick = () => {
+            userData[book.id] = userData[book.id] || {};
+            userData[book.id].status = userData[book.id].status === 'favorite' ? '' : 'favorite';
+            saveUserData();
+            renderBooks();
+        };
+        card.querySelector('.read').onclick = () => {
+            userData[book.id] = userData[book.id] || {};
+            userData[book.id].status = userData[book.id].status === 'read' ? '' : 'read';
+            saveUserData();
+            renderBooks();
+        };
+        card.querySelectorAll('.star').forEach(star => {
+            star.onclick = () => {
+                userData[book.id] = userData[book.id] || {};
+                userData[book.id].rating = parseInt(star.dataset.star);
+                saveUserData();
+                renderBooks();
+            };
+        });
+    });
+
+    document.getElementById('totalBooks').textContent = total;
+    document.getElementById('readBooks').textContent = readCount;
+    document.getElementById('favoriteBooks').textContent = favoriteCount;
+}
+
+// Загрузка данных с сервера
+fetch('/books')
+    .then(res => res.json())
+    .then(data => { booksData = data; renderBooks(); })
+    .catch(err => console.error(err));
+
+// Фильтры поиска
+document.getElementById('searchTitle').addEventListener('input', renderBooks);
+document.getElementById('searchAuthor').addEventListener('input', renderBooks);
+document.getElementById('searchGenre').addEventListener('input', renderBooks);
+document.getElementById('filterStatus').addEventListener('change', renderBooks);
+
+</script>
+</body>
+</html>
